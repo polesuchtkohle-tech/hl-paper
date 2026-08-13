@@ -1,0 +1,38 @@
+[Unit]
+Description=Paper-Trader: Hyperliquid BTC-Perp Breakout Simulation
+Documentation=https://github.com/user/hl-research
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=paper
+Group=paper
+
+# Arbeitsverzeichnis = paper/ auf der VM
+WorkingDirectory=/opt/paper-trader
+
+# Umgebungsvariablen aus .env laden (Secrets nie im Service-File!)
+EnvironmentFile=/opt/paper-trader/.env
+
+# Bot starten (uv aktiviert das venv automatisch)
+ExecStart=/opt/paper-trader/.venv/bin/python runner.py
+
+# Graceful Shutdown: SIGTERM senden, 30 Sekunden warten
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=30
+
+# Neustart bei Fehler (nicht bei bewusstem Stop mit systemctl stop)
+Restart=on-failure
+RestartSec=10
+
+# Logs gehen nach stderr -> systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=paper-trader
+
+# Speicherlimit (verhindert OOM bei 1280 Konten)
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

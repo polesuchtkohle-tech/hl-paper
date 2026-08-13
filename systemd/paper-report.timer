@@ -1,0 +1,11 @@
+[Unit]
+Description=Paper-Trader Tagesbericht taeglich um 06:00 UTC
+Requires=paper-report.service
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+Unit=paper-report.service
+
+[Install]
+WantedBy=timers.target

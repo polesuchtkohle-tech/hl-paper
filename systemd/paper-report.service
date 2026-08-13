@@ -1,0 +1,14 @@
+[Unit]
+Description=Paper-Trader Tagesbericht erstellen
+After=paper-trader.service
+
+[Service]
+Type=oneshot
+User=paper
+Group=paper
+WorkingDirectory=/opt/paper-trader
+EnvironmentFile=/opt/paper-trader/.env
+ExecStart=/opt/paper-trader/.venv/bin/python report.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=paper-report

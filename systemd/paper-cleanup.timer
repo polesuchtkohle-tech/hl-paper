@@ -1,0 +1,13 @@
+[Unit]
+Description=Paper-Trader Cleanup taeglich um 03:00 UTC
+Requires=paper-cleanup.service
+
+[Timer]
+# Jeden Tag um 03:00 UTC ausfuehren
+OnCalendar=*-*-* 03:00:00
+# Falls Zeitpunkt verpasst (VM war aus): sofort nacholen
+Persistent=true
+Unit=paper-cleanup.service
+
+[Install]
+WantedBy=timers.target
