@@ -1,9 +1,10 @@
-"""Signal-Definitionen fuer die drei Handelsstrategien.
+"""Signal-Definitionen fuer die Handelsstrategien.
 
-Drei Strategien:
+Strategien:
 1. BreakoutStrategy: Long/Short bei Ausbruch ueber/unter N-Kerzen-Range (Donchian-Channel)
 2. BuyAndHoldStrategy: Einmal Long, dann fuer immer halten
 3. RandomStrategy: Zufaellige Trades als statistische Vergleichsbasis
+4. AlwaysLongStrategy: Immer Long, außer Markt ist sehr bearish (≥7 von 10 roten Kerzen)
 """
 
 import random
@@ -98,3 +99,36 @@ class RandomStrategy:
             # Richtung ist 50/50
             return "long" if self._rng.random() < 0.5 else "short"
         return None
+
+
+class AlwaysLongStrategy:
+    """Immer Long-Bias, außer der Markt ist sehr bearish.
+
+    Gibt immer "long" zurueck — es sei denn, mindestens BEARISH_SCHWELLE
+    der letzten BEARISH_N 1m-Kerzen sind rot (close < open).
+    In dem Fall kein Entry (None).
+
+    Stateless: kein Zustandsobjekt noetig.
+    """
+
+    BEARISH_N = 10          # Fenstergroesse fuer Bearish-Filter
+    BEARISH_SCHWELLE = 7    # Mindestanzahl roter Kerzen im Fenster
+
+    @staticmethod
+    def signal(candles: list[dict]) -> str | None:
+        """Gibt 'long' zurueck, außer Markt ist sehr bearish.
+
+        Args:
+            candles: Liste von OHLCV-Kerzen (älteste zuerst, neueste zuletzt)
+
+        Returns:
+            "long" oder None
+        """
+        if len(candles) < AlwaysLongStrategy.BEARISH_N:
+            # Noch nicht genug Daten → trotzdem long
+            return "long"
+        letzte_n = candles[-AlwaysLongStrategy.BEARISH_N:]
+        rote_kerzen = sum(1 for k in letzte_n if k["close"] < k["open"])
+        if rote_kerzen >= AlwaysLongStrategy.BEARISH_SCHWELLE:
+            return None
+        return "long"

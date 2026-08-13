@@ -4,7 +4,7 @@ import pytest
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from strategies import BreakoutStrategy, BuyAndHoldStrategy, RandomStrategy
+from strategies import BreakoutStrategy, BuyAndHoldStrategy, RandomStrategy, AlwaysLongStrategy
 
 
 def _kerze(open_p, high, low, close, zeit="2026-08-01T00:00:00Z"):
@@ -142,3 +142,42 @@ class TestRandom:
         kerzen = [_kerze(100, 101, 99, 100)]
         for _ in range(100):
             assert strat.signal(kerzen, trade_wahrscheinlichkeit=0.0) is None
+
+
+class TestAlwaysLong:
+    def test_long_bei_normalen_marktbedingungen(self):
+        """Gibt 'long' wenn weniger als 7 von 10 Kerzen rot sind."""
+        kerzen = [_kerze(100, 101, 99, 101)] * 15  # alle gruen
+        assert AlwaysLongStrategy.signal(kerzen) == "long"
+
+    def test_kein_entry_bei_bearish_markt(self):
+        """Gibt None wenn >= 7 von 10 Kerzen rot sind (rote am Ende)."""
+        gruene = [_kerze(100, 102, 99, 101)] * 5
+        rote = [_kerze(101, 102, 99, 100)] * 8    # close < open = rot, am Ende
+        kerzen = gruene + rote
+        assert AlwaysLongStrategy.signal(kerzen) is None
+
+    def test_zu_wenig_daten_ergibt_long(self):
+        """Gibt 'long' wenn weniger als 10 Kerzen vorhanden."""
+        kerzen = [_kerze(101, 102, 99, 100)] * 5  # alles rot, aber nur 5 Kerzen
+        assert AlwaysLongStrategy.signal(kerzen) == "long"
+
+    def test_grenzfall_genau_7_rote(self):
+        """Genau 7 rote von 10 = kein Entry."""
+        rote = [_kerze(101, 102, 99, 100)] * 7
+        gruene = [_kerze(100, 102, 99, 101)] * 3
+        kerzen = rote + gruene
+        assert AlwaysLongStrategy.signal(kerzen) is None
+
+    def test_grenzfall_nur_6_rote(self):
+        """Nur 6 rote von 10 = Long erlaubt."""
+        rote = [_kerze(101, 102, 99, 100)] * 6
+        gruene = [_kerze(100, 102, 99, 101)] * 4
+        kerzen = rote + gruene
+        assert AlwaysLongStrategy.signal(kerzen) == "long"
+
+    def test_kein_short_signal(self):
+        """AlwaysLong gibt niemals 'short' zurueck."""
+        kerzen = [_kerze(100, 101, 99, 101)] * 20
+        ergebnis = AlwaysLongStrategy.signal(kerzen)
+        assert ergebnis != "short"

@@ -16,7 +16,7 @@ from db import (
     get_konten, insert_trade, insert_equity,
     update_konto_status, set_meta,
 )
-from strategies import BreakoutStrategy, BuyAndHoldStrategy, RandomStrategy
+from strategies import BreakoutStrategy, BuyAndHoldStrategy, RandomStrategy, AlwaysLongStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +286,8 @@ class SimulationEngine:
             return konto._strat.signal(konto.kerzen_history)
         elif konto.strategie == "zufall":
             return konto._strat.signal(konto.kerzen_history)
+        elif konto.strategie == "always_long":
+            return AlwaysLongStrategy.signal(konto.kerzen_history)
         return None
 
     def _einstieg(self, konto: Konto, candle: dict, richtung: str) -> None:

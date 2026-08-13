@@ -32,6 +32,10 @@ TESTMODUS_PARAMS = {
     "hebel": [1, 5, 25],
 }
 
+# --- Always-Long Parameter-Grid ---
+AL_TP_WERTE = [0.1, 0.2, 0.3, 0.5]   # in Prozent (klein)
+AL_SL_WERTE = [0.1, 0.2, 0.3]         # in Prozent (klein)
+
 
 def validate_combination(n: int, tp: float, sl: float, hebel: int) -> tuple[bool, str]:
     """Prueft eine Parameterkombination auf Gueltigkeit.
@@ -64,9 +68,33 @@ def konto_id_from_params(
 
     Format: brk_20_1.0_0.5_5 (Strategie_N_TP_SL_Hebel)
     """
-    praefix = {"breakout": "brk", "buy_and_hold": "bah", "zufall": "rnd"}
+    praefix = {"breakout": "brk", "buy_and_hold": "bah", "zufall": "rnd", "always_long": "al"}
     p = praefix.get(strategie, strategie)
     return f"{p}_{n}_{tp}_{sl}_{hebel}"
+
+
+def generate_always_long_grid() -> list[dict]:
+    """Erzeugt alle gueltigen Always-Long Parameterkombinationen.
+
+    60 Kombinationen: 4 TP × 3 SL × 5 Hebel.
+    Konto-ID Format: al_0_<tp>_<sl>_<hebel>
+    """
+    grid = []
+    for tp, sl, hebel in product(AL_TP_WERTE, AL_SL_WERTE, HEBEL_WERTE):
+        gueltig, grund = validate_combination(0, tp, sl, hebel)
+        if not gueltig:
+            continue
+        grid.append({
+            "konto_id":     konto_id_from_params(0, tp, sl, hebel, "always_long"),
+            "n":            0,
+            "tp":           tp,
+            "sl":           sl,
+            "hebel":        hebel,
+            "strategie":    "always_long",
+            "startkapital": STARTKAPITAL,
+            "warnung":      grund if grund else None,
+        })
+    return grid
 
 
 def generate_grid(testmodus: bool = False) -> list[dict]:
@@ -107,6 +135,27 @@ def generate_grid(testmodus: bool = False) -> list[dict]:
             "startkapital": STARTKAPITAL,
             "warnung":     grund if grund else None,
         })
+
+    # Always-Long Konten (Testmodus: 3 Konten, Vollmodus: alle 60)
+    if testmodus:
+        al_konten = [
+            {"tp": 0.2, "sl": 0.1, "hebel": 1},
+            {"tp": 0.3, "sl": 0.2, "hebel": 5},
+            {"tp": 0.5, "sl": 0.3, "hebel": 25},
+        ]
+        for p in al_konten:
+            grid.append({
+                "konto_id":     konto_id_from_params(0, p["tp"], p["sl"], p["hebel"], "always_long"),
+                "n":            0,
+                "tp":           p["tp"],
+                "sl":           p["sl"],
+                "hebel":        p["hebel"],
+                "strategie":    "always_long",
+                "startkapital": STARTKAPITAL,
+                "warnung":      None,
+            })
+    else:
+        grid.extend(generate_always_long_grid())
 
     # Buy-and-Hold: einmal kaufen, bis zum Ende halten
     grid.append({
