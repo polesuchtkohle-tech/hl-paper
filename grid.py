@@ -32,9 +32,13 @@ TESTMODUS_PARAMS = {
     "hebel": [1, 5, 25],
 }
 
-# --- Always-Long Parameter-Grid ---
+# --- Always-Long Parameter-Grid (klein, erste Generation) ---
 AL_TP_WERTE = [0.1, 0.2, 0.3, 0.5]   # in Prozent (klein)
 AL_SL_WERTE = [0.1, 0.2, 0.3]         # in Prozent (klein)
+
+# --- Always-Long Parameter-Grid (groß, zweite Generation) ---
+AL2_TP_WERTE = [1.0, 1.5, 2.0, 3.0]  # in Prozent (groß)
+AL2_SL_WERTE = [0.5, 0.8, 1.0]        # in Prozent (groß)
 
 
 def validate_combination(n: int, tp: float, sl: float, hebel: int) -> tuple[bool, str]:
@@ -76,10 +80,12 @@ def konto_id_from_params(
 def generate_always_long_grid() -> list[dict]:
     """Erzeugt alle gueltigen Always-Long Parameterkombinationen.
 
-    60 Kombinationen: 4 TP × 3 SL × 5 Hebel.
-    Konto-ID Format: al_0_<tp>_<sl>_<hebel>
+    60 Kombinationen (klein): 4 TP × 3 SL × 5 Hebel — Konto-ID: al_0_<tp>_<sl>_<hebel>
+    60 Kombinationen (groß):  4 TP × 3 SL × 5 Hebel — Konto-ID: al2_0_<tp>_<sl>_<hebel>
     """
     grid = []
+
+    # Erste Generation: kleine TP/SL
     for tp, sl, hebel in product(AL_TP_WERTE, AL_SL_WERTE, HEBEL_WERTE):
         gueltig, grund = validate_combination(0, tp, sl, hebel)
         if not gueltig:
@@ -94,6 +100,23 @@ def generate_always_long_grid() -> list[dict]:
             "startkapital": STARTKAPITAL,
             "warnung":      grund if grund else None,
         })
+
+    # Zweite Generation: größere TP/SL (weniger Trades, weniger Fees)
+    for tp, sl, hebel in product(AL2_TP_WERTE, AL2_SL_WERTE, HEBEL_WERTE):
+        gueltig, grund = validate_combination(0, tp, sl, hebel)
+        if not gueltig:
+            continue
+        grid.append({
+            "konto_id":     f"al2_0_{tp}_{sl}_{hebel}",
+            "n":            0,
+            "tp":           tp,
+            "sl":           sl,
+            "hebel":        hebel,
+            "strategie":    "always_long",
+            "startkapital": STARTKAPITAL,
+            "warnung":      grund if grund else None,
+        })
+
     return grid
 
 
