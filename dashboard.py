@@ -112,8 +112,8 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
         for k in breakout
     ]
 
-    # --- Always-Long Daten ---
-    al_konten = [k for k in alle_konten if k["strategie"] == "always_long"]
+    # --- Always-Long Daten (nur Gen2: al2_-Präfix) ---
+    al_konten = [k for k in alle_konten if k["strategie"] == "always_long" and k["konto_id"].startswith("al2_")]
     al_aktiv = [k for k in al_konten if k["status"] == "aktiv"]
     al_ruiniert = [k for k in al_konten if k["status"] == "ruiniert"]
     al_median = statistics.median([k["kontostand"] for k in al_aktiv]) if al_aktiv else 0.0
