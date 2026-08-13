@@ -90,6 +90,12 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
     bonferroni = math.sqrt(2 * math.log(M)) if M > 1 else 0.0
     ambivalent_pct = gesamt_ambivalent / gesamt_trades * 100 if gesamt_trades > 0 else 0.0
 
+    # Trades pro Konto
+    trades_rows = conn.execute(
+        "SELECT konto_id, COUNT(*) FROM trades GROUP BY konto_id"
+    ).fetchall()
+    trades_pro_konto = {row[0]: row[1] for row in trades_rows}
+
     # Tabelle: alle Breakout-Konten (JSON fuer JavaScript)
     tabellen_daten = [
         {
@@ -101,6 +107,7 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
             "kontostand": round(k["kontostand"], 2),
             "status": k["status"],
             "delta_pct": round((k["kontostand"] / 100.0 - 1) * 100, 1),
+            "trades": trades_pro_konto.get(k["konto_id"], 0),
         }
         for k in breakout
     ]
@@ -136,6 +143,7 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
             "kontostand": round(k["kontostand"], 2),
             "status": k["status"],
             "delta_pct": round((k["kontostand"] / 100.0 - 1) * 100, 1),
+            "trades": trades_pro_konto.get(k["konto_id"], 0),
         }
         for k in al_konten
     ]
@@ -482,7 +490,8 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
                             <th onclick="sortTable(4)">Hebel <span class="sort-icon"></span></th>
                             <th onclick="sortTable(5)">Kontostand <span class="sort-icon"></span></th>
                             <th onclick="sortTable(6)">Δ vs 100 <span class="sort-icon"></span></th>
-                            <th onclick="sortTable(7)">Status <span class="sort-icon"></span></th>
+                            <th onclick="sortTable(7)">Trades <span class="sort-icon"></span></th>
+                            <th onclick="sortTable(8)">Status <span class="sort-icon"></span></th>
                         </tr>
                     </thead>
                     <tbody id="tabellen-body"></tbody>
@@ -548,7 +557,8 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
                             <th onclick="sortAlTable(3)">Hebel <span class="sort-icon"></span></th>
                             <th onclick="sortAlTable(4)">Kontostand <span class="sort-icon"></span></th>
                             <th onclick="sortAlTable(5)">Δ vs 100 <span class="sort-icon"></span></th>
-                            <th onclick="sortAlTable(6)">Status <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(6)">Trades <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(7)">Status <span class="sort-icon"></span></th>
                         </tr>
                     </thead>
                     <tbody id="al-tabellen-body"></tbody>
@@ -618,6 +628,7 @@ function renderTable(data) {{
             <td>${{k.hebel}}x</td>
             <td style="font-weight:600">${{k.kontostand.toFixed(2)}}</td>
             <td class="${{dc}}">${{vorzeichen}}${{dp.toFixed(1)}}%</td>
+            <td>${{k.trades}}</td>
             <td>${{badge}}</td>
         </tr>`;
     }}).join('');
@@ -633,7 +644,7 @@ function filterTable() {{
     sortAndRender();
 }}
 
-const keys = ['id','n','tp','sl','hebel','kontostand','delta_pct','status'];
+const keys = ['id','n','tp','sl','hebel','kontostand','delta_pct','trades','status'];
 
 function sortTable(col) {{
     const ths = document.querySelectorAll('th');
@@ -667,7 +678,7 @@ const AL_ALLE_DATEN = {json.dumps(al_tabellen_daten)};
 let alGefilterteDaten = [...AL_ALLE_DATEN];
 let alSortCol = 4;
 let alSortAsc = false;
-const alKeys = ['id','tp','sl','hebel','kontostand','delta_pct','status'];
+const alKeys = ['id','tp','sl','hebel','kontostand','delta_pct','trades','status'];
 
 {'Plotly.newPlot("al-equity-chart",' + json.dumps(al_equity_traces) + ', {...plotLayout(""), ...{xaxis: {gridcolor:"#1e2235",zerolinecolor:"#1e2235"}, yaxis: {title: {text:"USDC",font:{size:10}},gridcolor:"#1e2235",zerolinecolor:"#1e2235"}}}, plotConfig);' if al_hat_equity else ''}
 
@@ -691,6 +702,7 @@ function renderAlTable(data) {{
             <td>${{k.hebel}}x</td>
             <td style="font-weight:600">${{k.kontostand.toFixed(2)}}</td>
             <td class="${{dc}}">${{vorzeichen}}${{dp.toFixed(1)}}%</td>
+            <td>${{k.trades}}</td>
             <td>${{badge}}</td>
         </tr>`;
     }}).join('');
