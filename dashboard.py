@@ -90,7 +90,7 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
     bonferroni = math.sqrt(2 * math.log(M)) if M > 1 else 0.0
     ambivalent_pct = gesamt_ambivalent / gesamt_trades * 100 if gesamt_trades > 0 else 0.0
 
-    # Tabelle: alle Konten (JSON fuer JavaScript)
+    # Tabelle: alle Breakout-Konten (JSON fuer JavaScript)
     tabellen_daten = [
         {
             "id": k["konto_id"],
@@ -103,6 +103,41 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
             "delta_pct": round((k["kontostand"] / 100.0 - 1) * 100, 1),
         }
         for k in breakout
+    ]
+
+    # --- Always-Long Daten ---
+    al_konten = [k for k in alle_konten if k["strategie"] == "always_long"]
+    al_aktiv = [k for k in al_konten if k["status"] == "aktiv"]
+    al_ruiniert = [k for k in al_konten if k["status"] == "ruiniert"]
+    al_median = statistics.median([k["kontostand"] for k in al_aktiv]) if al_aktiv else 0.0
+
+    al_top10 = sorted(al_aktiv, key=lambda k: k["kontostand"], reverse=True)[:10]
+    al_equity_traces = []
+    al_hat_equity = False
+    for k in al_top10:
+        history = get_equity_history(conn, k["konto_id"])
+        if history:
+            al_hat_equity = True
+            al_equity_traces.append({
+                "x": [e["zeit"] for e in history],
+                "y": [e["kontostand"] for e in history],
+                "type": "scatter",
+                "mode": "lines",
+                "name": k["konto_id"][:20],
+                "line": {"width": 2},
+            })
+
+    al_tabellen_daten = [
+        {
+            "id": k["konto_id"],
+            "tp": k["tp"],
+            "sl": k["sl"],
+            "hebel": k["hebel"],
+            "kontostand": round(k["kontostand"], 2),
+            "status": k["status"],
+            "delta_pct": round((k["kontostand"] / 100.0 - 1) * 100, 1),
+        }
+        for k in al_konten
     ]
 
     conn.close()
@@ -458,6 +493,72 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
 
 </div>
 
+<!-- Always-Long Sektion -->
+<div class="page" style="padding-top:0">
+
+    <div class="section">
+        <div class="section-title" style="color:#f59e0b;border-color:#f59e0b33">Always-Long Strategie — Eigene Sektion</div>
+
+        <!-- Always-Long KPIs -->
+        <div class="kpi-grid" style="margin-bottom:16px">
+            <div class="kpi">
+                <div class="kpi-label">Aktive Konten</div>
+                <div class="kpi-value">{len(al_aktiv)}</div>
+                <div class="kpi-sub">von {len(al_konten)} gesamt</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Ruiniert</div>
+                <div class="kpi-value {'red' if al_ruiniert else 'green'}">{len(al_ruiniert)}</div>
+                <div class="kpi-sub">{f'{len(al_ruiniert)/len(al_konten)*100:.1f}%' if al_konten else '—'} Ruinquote</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Median Kontostand</div>
+                <div class="kpi-value {'green' if al_median >= 100 else 'red'}">{al_median:.2f}</div>
+                <div class="kpi-sub">USDC (Start: 100)</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Bearish-Filter</div>
+                <div class="kpi-value" style="font-size:1rem;padding-top:6px">7 von 10</div>
+                <div class="kpi-sub">rote 1m-Kerzen = kein Entry</div>
+            </div>
+        </div>
+
+        <!-- Equity-Kurven -->
+        <div class="chart-card full" style="margin-bottom:16px">
+            <div class="chart-card-title">Equity-Kurven Top 10 Always-Long Konten</div>
+            {'<div id="al-equity-chart" class="chart-inner tall"></div>' if al_hat_equity else '<div class="empty-state"><p>Noch keine Equity-Daten</p><small>Equity wird alle 15 Minuten gespeichert.</small></div>'}
+        </div>
+
+        <!-- Always-Long Tabelle -->
+        <div class="table-wrap">
+            <div class="table-search">
+                <label>Suche:</label>
+                <input type="text" id="al-search-input" placeholder="Konto-ID, Hebel..." oninput="filterAlTable()">
+                <label style="margin-left:auto">
+                    <input type="checkbox" id="al-only-aktiv" onchange="filterAlTable()"> Nur aktive
+                </label>
+            </div>
+            <div class="table-container">
+                <table id="al-konten-tabelle">
+                    <thead>
+                        <tr>
+                            <th onclick="sortAlTable(0)">Konto-ID <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(1)">TP% <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(2)">SL% <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(3)">Hebel <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(4)">Kontostand <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(5)">Δ vs 100 <span class="sort-icon"></span></th>
+                            <th onclick="sortAlTable(6)">Status <span class="sort-icon"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="al-tabellen-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
 <div class="footer">Paper-Trader — kein echtes Geld — {now}</div>
 
 <script>
@@ -560,6 +661,73 @@ sortAndRender();
 
 // Auto-refresh alle 60 Sekunden
 setTimeout(() => location.reload(), 60000);
+
+// --- Always-Long Tabelle ---
+const AL_ALLE_DATEN = {json.dumps(al_tabellen_daten)};
+let alGefilterteDaten = [...AL_ALLE_DATEN];
+let alSortCol = 4;
+let alSortAsc = false;
+const alKeys = ['id','tp','sl','hebel','kontostand','delta_pct','status'];
+
+{'Plotly.newPlot("al-equity-chart",' + json.dumps(al_equity_traces) + ', {...plotLayout(""), ...{xaxis: {gridcolor:"#1e2235",zerolinecolor:"#1e2235"}, yaxis: {title: {text:"USDC",font:{size:10}},gridcolor:"#1e2235",zerolinecolor:"#1e2235"}}}, plotConfig);' if al_hat_equity else ''}
+
+function renderAlTable(data) {{
+    const tbody = document.getElementById('al-tabellen-body');
+    if (data.length === 0) {{
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#334155;padding:32px">Keine Konten gefunden</td></tr>';
+        return;
+    }}
+    tbody.innerHTML = data.map(k => {{
+        const dp = k.delta_pct;
+        const dc = dp > 0 ? 'pos' : dp < 0 ? 'neg' : 'neutral';
+        const vorzeichen = dp > 0 ? '+' : '';
+        const badge = k.status === 'aktiv'
+            ? '<span class="badge badge-aktiv">aktiv</span>'
+            : '<span class="badge badge-ruiniert">ruiniert</span>';
+        return `<tr>
+            <td style="font-family:monospace;font-size:0.78rem">${{k.id}}</td>
+            <td>${{k.tp.toFixed(2)}}</td>
+            <td>${{k.sl.toFixed(2)}}</td>
+            <td>${{k.hebel}}x</td>
+            <td style="font-weight:600">${{k.kontostand.toFixed(2)}}</td>
+            <td class="${{dc}}">${{vorzeichen}}${{dp.toFixed(1)}}%</td>
+            <td>${{badge}}</td>
+        </tr>`;
+    }}).join('');
+}}
+
+function filterAlTable() {{
+    const q = document.getElementById('al-search-input').value.toLowerCase();
+    const nurAktiv = document.getElementById('al-only-aktiv').checked;
+    alGefilterteDaten = AL_ALLE_DATEN.filter(k =>
+        (!nurAktiv || k.status === 'aktiv') &&
+        (!q || k.id.toLowerCase().includes(q) || String(k.hebel).includes(q))
+    );
+    sortAndRenderAl();
+}}
+
+function sortAlTable(col) {{
+    const ths = document.querySelectorAll('#al-konten-tabelle th');
+    ths.forEach((th, i) => {{
+        th.classList.remove('sort-asc','sort-desc');
+        if (i === col) th.classList.add(alSortAsc && alSortCol === col ? 'sort-desc' : 'sort-asc');
+    }});
+    if (alSortCol === col) alSortAsc = !alSortAsc; else {{ alSortCol = col; alSortAsc = true; }}
+    sortAndRenderAl();
+}}
+
+function sortAndRenderAl() {{
+    const key = alKeys[alSortCol];
+    const sorted = [...alGefilterteDaten].sort((a,b) => {{
+        const av = a[key], bv = b[key];
+        const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv));
+        return alSortAsc ? cmp : -cmp;
+    }});
+    renderAlTable(sorted);
+}}
+
+alSortCol = 4; alSortAsc = false;
+sortAndRenderAl();
 </script>
 </body>
 </html>"""
