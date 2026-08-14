@@ -22,7 +22,7 @@ MIN_NOTIONAL = 10.0    # Mindestordergröße Hyperliquid in USD
 N_WERTE        = [10, 20, 50, 100]
 TP_WERTE       = [0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0]  # in Prozent
 SL_WERTE       = [0.2, 0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0]  # in Prozent
-HEBEL_WERTE    = [1, 3, 5, 10, 25]
+HEBEL_WERTE    = [1, 3, 5, 10, 15, 20, 25, 30, 40]
 
 # --- Testmodus: nur 6 Konten ---
 TESTMODUS_PARAMS = {

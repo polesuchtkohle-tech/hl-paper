@@ -61,7 +61,7 @@ def erstelle_dashboard(db_pfad: str = "paper.db", ausgabe: str = "dashboard.html
     }
 
     # Ruinquote je Hebelstufe
-    hebel_stufen = [1, 3, 5, 10, 25]
+    hebel_stufen = [1, 3, 5, 10, 15, 20, 25, 30, 40]
     ruinquoten = []
     hebel_labels = []
     for h in hebel_stufen:

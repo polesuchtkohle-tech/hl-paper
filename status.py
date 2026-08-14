@@ -15,8 +15,10 @@ import argparse
 import math
 import statistics
 from datetime import datetime, timezone
+from itertools import product
 
 from db import get_connection, get_konten
+from grid import validate_combination, N_WERTE, TP_WERTE, SL_WERTE, HEBEL_WERTE
 
 
 def render_status(db_pfad: str = "paper.db") -> str:
@@ -37,6 +39,20 @@ def render_status(db_pfad: str = "paper.db") -> str:
         "SELECT SUM(ambivalente_kerzen) FROM konten"
     ).fetchone()[0] or 0
     gesamt_trades = conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
+
+    # Startzeit und Überlebensdauer je Hebelstufe
+    meta_row = conn.execute("SELECT startzeitpunkt FROM meta WHERE id=1").fetchone()
+    start_dt = None
+    if meta_row and meta_row[0]:
+        try:
+            start_dt = datetime.fromisoformat(meta_row[0].replace("Z", "+00:00"))
+        except ValueError:
+            pass
+
+    ruiniert_mit_zeit = conn.execute(
+        "SELECT hebel, ruin_zeitpunkt FROM konten "
+        "WHERE status = 'ruiniert' AND strategie = 'breakout' AND ruin_zeitpunkt IS NOT NULL"
+    ).fetchall()
 
     conn.close()
 
@@ -145,12 +161,54 @@ def render_status(db_pfad: str = "paper.db") -> str:
     h("RUINQUOTE JE HEBELSTUFE")
     h(f"  {'Hebel':>5}  | {'Aktiv':>7} | {'Ruiniert':>8} | {'Ruinquote':>9}")
     h(f"  {'-'*5}  | {'-'*7} | {'-'*8} | {'-'*9}")
-    for hebel in [1, 3, 5, 10, 25]:
+    for hebel in HEBEL_WERTE:
         aktiv_h = sum(1 for k in breakout_konten if k["hebel"] == hebel and k["status"] == "aktiv")
         ruin_h = sum(1 for k in breakout_konten if k["hebel"] == hebel and k["status"] == "ruiniert")
         total_h = aktiv_h + ruin_h
         ruinquote = ruin_h / total_h * 100 if total_h > 0 else 0.0
         h(f"  {hebel:>5}x | {aktiv_h:>7} | {ruin_h:>8} | {ruinquote:>8.1f}%")
+    h()
+
+    # --- Überlebensdauer je Hebelstufe ---
+    h("UEBERLEBENSDAUER JE HEBELSTUFE (ruinierte Breakout-Konten)")
+    if start_dt and ruiniert_mit_zeit:
+        h(f"  {'Hebel':>5}  | {'Ruiniert':>8} | {'Median (h)':>10} | {'Min (h)':>7}")
+        h(f"  {'-'*5}  | {'-'*8} | {'-'*10} | {'-'*7}")
+        for hebel in HEBEL_WERTE:
+            zeiten = []
+            for row in ruiniert_mit_zeit:
+                if row[0] == hebel:
+                    try:
+                        ruin_dt = datetime.fromisoformat(row[1].replace("Z", "+00:00"))
+                        zeiten.append((ruin_dt - start_dt).total_seconds() / 3600)
+                    except (ValueError, TypeError):
+                        pass
+            if zeiten:
+                median_h = statistics.median(zeiten)
+                min_h = min(zeiten)
+                h(
+                    f"  {hebel:>5}x | {len(zeiten):>8} | "
+                    f"{median_h:>10.1f} | {min_h:>7.1f}"
+                )
+            else:
+                h(f"  {hebel:>5}x | {'0':>8} | {'—':>10} | {'—':>7}")
+    else:
+        h("  (noch keine ruinierten Konten oder Startzeit unbekannt)")
+    h()
+
+    # --- Ungültige Kombinationen je Hebelstufe ---
+    h("UNGUELTIGE KOMBINATIONEN JE HEBELSTUFE (SL wirkungslos)")
+    h(f"  {'Hebel':>5}  | {'Ungueltig':>9} | {'Liq-Dist':>8} | Betroffene SL-Werte")
+    h(f"  {'-'*5}  | {'-'*9} | {'-'*8} | {'-'*20}")
+    for hebel in HEBEL_WERTE:
+        liq_pct = (1.0 / hebel) * 0.9 * 100
+        ungueltige_sl = [sl for sl in SL_WERTE if not validate_combination(10, 1.0, sl, hebel)[0]]
+        anzahl = len(N_WERTE) * len(TP_WERTE) * len(ungueltige_sl)
+        if ungueltige_sl:
+            sl_str = ", ".join(f"{sl}%" for sl in ungueltige_sl)
+            h(f"  {hebel:>5}x | {anzahl:>9} | {liq_pct:>7.2f}% | {sl_str}")
+        else:
+            h(f"  {hebel:>5}x | {'0':>9} | {liq_pct:>7.2f}% | —")
     h()
 
     # --- Ambivalente Kerzen ---

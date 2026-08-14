@@ -4,18 +4,18 @@ import pytest
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from grid import generate_grid, validate_combination, konto_id_from_params
+from grid import generate_grid, validate_combination, konto_id_from_params, N_WERTE, TP_WERTE, SL_WERTE, HEBEL_WERTE
 
 
-def test_volles_grid_maximal_1280_kombinationen():
-    """Vor Filterung gibt es 4*8*8*5 = 1280 Rohdatensätze.
+def test_volles_grid_maximal_kombinationen():
+    """Nach Filterung ungültiger Kombinationen weniger als Rohdaten, aber nie 0.
 
-    Nach Filterung ungültiger Kombinationen weniger, aber nie mehr.
+    Rohdaten-Maximum ergibt sich aus dem aktuellen Grid (dynamisch).
     """
+    max_roh = len(N_WERTE) * len(TP_WERTE) * len(SL_WERTE) * len(HEBEL_WERTE)
     grid = generate_grid(testmodus=False)
-    # Nur Breakout-Konten zaehlen (ohne Vergleichsstrategien)
     breakout_konten = [k for k in grid if k["strategie"] == "breakout"]
-    assert len(breakout_konten) <= 1280
+    assert len(breakout_konten) <= max_roh
     assert len(breakout_konten) > 0
 
 
