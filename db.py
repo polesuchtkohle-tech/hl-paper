@@ -163,17 +163,19 @@ def get_konten(conn: sqlite3.Connection) -> list[dict]:
     return [dict(row) for row in cursor.fetchall()]
 
 
-def get_equity_history(conn: sqlite3.Connection, konto_id: str) -> list[dict]:
+def get_equity_history(conn: sqlite3.Connection, konto_id: str, limit: int = 500) -> list[dict]:
     """Equity-Verlauf fuer ein bestimmtes Konto zurueckgeben.
 
     Chronologisch sortiert fuer Equity-Kurven.
+    limit: maximale Anzahl Punkte (neueste), Standard 500 (~5 Tage).
     """
     cursor = conn.execute(
         "SELECT zeit, kontostand FROM equity "
-        "WHERE konto_id = ? ORDER BY zeit",
-        (konto_id,),
+        "WHERE konto_id = ? ORDER BY zeit DESC LIMIT ?",
+        (konto_id, limit),
     )
-    return [dict(row) for row in cursor.fetchall()]
+    rows = [dict(row) for row in cursor.fetchall()]
+    return list(reversed(rows))
 
 
 def update_konto_status(
